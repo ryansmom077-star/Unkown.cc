@@ -14,7 +14,6 @@ const user = JSON.parse(localStorage.getItem('user') || '{}')
 const isStaff = user?.staffRole === 'admin' || user?.staffRole === 'manager' || (user?.roles || []).includes('role_admin') || (user?.roles || []).includes('role_manager')
 const isAdmin = user?.staffRole === 'admin' || (user?.roles || []).includes('role_admin')
 const router = useRouter()
-const openMenu = ref(null)
 
 async function loadMembers() {
   loading.value = true
@@ -181,20 +180,6 @@ function onSearch() {
           </div>
         </div>
         
-        <!-- Admin Menu (Staff Only) -->
-        <div v-if="isStaff" style="border-top:1px solid rgba(0,255,136,0.1);padding-top:12px;margin-top:12px;position:relative">
-          <div style="font-size:12px;color:#9bb0bd;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-            <div>Staff Actions:</div>
-            <div style="position:relative">
-              <button @click="openMenu.value = openMenu.value === member.id ? null : member.id" style="background:transparent;border:none;color:#9bb0bd;cursor:pointer;font-size:18px">⋯</button>
-              <div v-if="openMenu === member.id" style="position:absolute;right:0;top:28px;background:var(--card);border:1px solid rgba(0,255,136,0.1);border-radius:6px;padding:8px;min-width:160px;z-index:20">
-                <button @click="router.push(`/profile/${member.id}`)" style="display:block;width:100%;text-align:left;padding:8px;border:none;background:transparent;color:#d9eef5;cursor:pointer">View Profile</button>
-                <button @click="changeRolesForMember(member)" style="display:block;width:100%;text-align:left;padding:8px;border:none;background:transparent;color:#d9eef5;cursor:pointer">Change Roles</button>
-                <button v-if="isAdmin" @click="member.banned ? unbanMember(member.id) : banMember(member.id)" style="display:block;width:100%;text-align:left;padding:8px;border:none;background:transparent;color:#d9eef5;cursor:pointer">{{ member.banned ? 'Unban' : 'Ban' }}</button>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>

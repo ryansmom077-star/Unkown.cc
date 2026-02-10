@@ -9,6 +9,7 @@ import Guide from './views/Guide.vue'
 import Members from './views/Members.vue'
 import Profile from './views/Profile.vue'
 import Tickets from './views/Tickets.vue'
+import Terms from './views/Terms.vue'
 
 const routes = [
   { path: '/', component: Home },
@@ -21,6 +22,7 @@ const routes = [
   { path: '/members', component: Members, meta: { requiresAuth: true } },
   { path: '/profile/:id?', component: Profile, meta: { requiresAuth: true } },
   { path: '/tickets', component: Tickets, meta: { requiresAuth: true } },
+  { path: '/terms', component: Terms },
   { path: '/admin', component: Admin, meta: { requiresAuth: true, requiresStaff: true } }
 ]
 

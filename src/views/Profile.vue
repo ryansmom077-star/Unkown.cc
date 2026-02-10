@@ -47,8 +47,21 @@ const offsetStart = ref({ x: 0, y: 0 })
 const allowedImageTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const allowedImageLabel = 'PNG, JPG, WEBP, or GIF'
 
-const pfpDisplay = computed(() => pfpPreview.value || profile.value.profile?.pfp)
-const bannerDisplay = computed(() => bannerPreview.value || profile.value.profile?.banner)
+const isStaffUser = computed(() => {
+  return currentUser?.staffRole === 'admin' || currentUser?.staffRole === 'manager' || currentUser?.role === 'staff'
+    || (currentUser?.roles || []).includes('role_admin') || (currentUser?.roles || []).includes('role_manager')
+})
+
+function resolveImageUrl(url) {
+  if (!url) return ''
+  if (url.startsWith('data:')) return url
+  if (url.startsWith('http://') || url.startsWith('https://')) return url
+  if (url.startsWith('/uploads/')) return `${API_BASE}${url}`
+  return url
+}
+
+const pfpDisplay = computed(() => resolveImageUrl(pfpPreview.value) || resolveImageUrl(profile.value.profile?.pfp))
+const bannerDisplay = computed(() => resolveImageUrl(bannerPreview.value) || resolveImageUrl(profile.value.profile?.banner))
 const cropFrame = computed(() => {
   return cropType.value === 'pfp'
     ? { width: 280, height: 280 }
@@ -122,7 +135,7 @@ async function loadInvites() {
 }
 
 async function generateInvites() {
-  if (!canGenerateInvites.value) return
+  if (!canGenerateInvites.value || !isStaffUser.value) return
   invitesError.value = ''
   invitesLoading.value = true
   try {
@@ -568,7 +581,7 @@ watch([activeTab, isOwnProfile], ([tab]) => {
           </div>
         </div>
 
-        <div v-if="canGenerateInvites" style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <div v-if="canGenerateInvites && isStaffUser" style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
           <input class="input" type="number" min="1" max="25" v-model.number="inviteGenerateCount" style="width:90px" />
           <button class="create-btn" @click="generateInvites" :disabled="invitesLoading">Generate Invites</button>
         </div>

@@ -17,6 +17,17 @@ const loading = ref(false)
 const error = ref('')
 const success = ref('')
 
+function updateThreadCount(forumId, count) {
+  const categoryIds = Object.keys(forumsByCategory.value || {})
+  for (const catId of categoryIds) {
+    const forum = (forumsByCategory.value[catId] || []).find(item => item.id === forumId)
+    if (forum) {
+      forum.threadCount = count
+      break
+    }
+  }
+}
+
 async function loadCategories() {
   try {
     const res = await fetch(`${API_BASE}/api/forums/categories`, {
@@ -39,6 +50,7 @@ async function selectForum(forumId) {
     })
     if (!res.ok) throw new Error((await res.json()).error || 'Failed to load threads')
     threads.value = await res.json()
+    updateThreadCount(forumId, threads.value.length)
   } catch (err) {
     error.value = err.message
   }

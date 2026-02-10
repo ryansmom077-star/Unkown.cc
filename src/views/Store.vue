@@ -1,11 +1,13 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { API_BASE } from '../lib/apiBase'
 
 const products = ref([])
 const loading = ref(false)
 const error = ref('')
 const token = localStorage.getItem('token')
+const router = useRouter()
 
 const selectedPlanMonths = ref(1)
 const selectedPlanIndex = ref(0)
@@ -45,22 +47,13 @@ const product = computed(() => products.value[0] || { id: 'demo', name: 'Product
 async function buySelected() {
   const prod = product.value
   const months = plans.value[selectedPlanIndex.value].months
-  const tos = await fetch(`${API_BASE}/api/tos`).then(r => r.json()).catch(()=>({title:'TOS',content:''}))
-  const signature = prompt(`${tos.title}\n\n${tos.content}\n\nType your signature to accept and purchase ${prod.name} (${months} month(s)): `)
-  if (!signature) return alert('Purchase cancelled: signature required')
-
-  try {
-    const res = await fetch(`${API_BASE}/api/store/checkout`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ productId: prod.id, months, paymentIntentId: `pi_dummy_${Date.now()}`, tosAccepted: true, tosSignature: signature })
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Purchase failed')
-    alert('Purchase complete! Order id: ' + data.id)
-  } catch (err) {
-    alert('Purchase error: ' + err.message)
-  }
+  if (!token) return router.push('/login')
+  localStorage.setItem('pendingCheckout', JSON.stringify({
+    productId: prod.id,
+    months,
+    createdAt: Date.now()
+  }))
+  router.push('/terms')
 }
 
 onMounted(loadProducts)

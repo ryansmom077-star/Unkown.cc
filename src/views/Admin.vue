@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { API_BASE } from '../lib/apiBase'
+import logoPng from '../assets/logo.png'
 
 const keys = ref([])
 const users = ref([])
@@ -641,8 +642,14 @@ onMounted(loadData)
       <a href="/" style="color:#00ff88;text-decoration:none">← Back to Forum</a>
     </div>
     
-    <h1 style="margin:0 0 18px;color:#00ff88">Staff Admin Panel</h1>
-    <p class="muted">Role: {{ user?.staffRole?.toUpperCase() }}</p>
+    <div class="admin-brand">
+      <img :src="logoPng" alt="Unknown.cc" />
+      <div>
+        <div class="admin-brand-title">Unknown.cc</div>
+        <div class="admin-brand-sub">Staff Manager</div>
+      </div>
+      <div class="admin-brand-role">Role: {{ user?.staffRole?.toUpperCase() }}</div>
+    </div>
     
     <div style="display:flex;gap:12px;margin-bottom:18px;border-bottom:1px solid rgba(0,255,136,0.2);overflow-x:auto">
       <button @click="activeTab='keys'" :style="{color:activeTab==='keys'?'#00ff88':'#9bb0bd',background:'transparent',border:'none',padding:'12px',cursor:'pointer',borderBottom:activeTab==='keys'?'2px solid #00ff88':'none',whiteSpace:'nowrap'}">Keys</button>
@@ -998,10 +1005,6 @@ onMounted(loadData)
                   <input type="checkbox" v-model="rank.permissions.generate_invites" @change="updateRankPermissions(rank.id)" />
                   Generate Invites
                 </label>
-                <label style="display:flex;align-items:center;gap:8px;color:#d9eef5;cursor:pointer">
-                  <input type="checkbox" v-model="rank.permissions.generate_invites" @change="updateRankPermissions(rank.id)" />
-                  Generate Invites
-                </label>
                 <label style="display:flex;align-items:center;gap:8px;color:#ff6b6b;cursor:pointer">
                   <input type="checkbox" v-model="rank.permissions.ban_users" @change="updateRankPermissions(rank.id)" />
                   Ban Users
@@ -1085,3 +1088,42 @@ onMounted(loadData)
     </div>
   </div>
 </template>
+
+<style scoped>
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.08), rgba(0, 255, 204, 0.03));
+  border: 1px solid rgba(0, 255, 136, 0.15);
+}
+.admin-brand img {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  object-fit: cover;
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.35);
+  background: #061218;
+}
+.admin-brand-title {
+  font-weight: 700;
+  font-size: 18px;
+  color: #e7f8ff;
+  letter-spacing: 1px;
+}
+.admin-brand-sub {
+  font-size: 12px;
+  color: #9bb0bd;
+}
+.admin-brand-role {
+  margin-left: auto;
+  color: #00ff88;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+</style>

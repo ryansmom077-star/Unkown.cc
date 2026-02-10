@@ -3,10 +3,6 @@
   <section class="home-hero">
     <div class="hero-bg" :style="{ backgroundImage: `url(${logoPng})` }"></div>
     <div class="hero-overlay"></div>
-    <div class="hero-top-left">
-      <img :src="logoPng" alt="Unknown.cc" />
-      <span>unknown.cc</span>
-    </div>
     <div class="hero-content">
       <h1>
         enhance your<br />
@@ -59,27 +55,6 @@ import logoPng from '../assets/logo.png'
   max-width: 560px;
   color: #e7f8ff;
   text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
-}
-.hero-top-left {
-  position: absolute;
-  z-index: 2;
-  top: 22px;
-  left: clamp(20px, 6vw, 80px);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: lowercase;
-  color: #d9eef5;
-}
-.hero-top-left img {
-  height: 46px;
-  width: 46px;
-  border-radius: 10px;
-  object-fit: cover;
-  filter: none;
-  image-rendering: auto;
 }
 .hero-content h1 {
   margin: 0 0 16px;
