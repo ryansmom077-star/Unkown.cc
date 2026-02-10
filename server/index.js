@@ -9,7 +9,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs'
 import Stripe from 'stripe'
-import nodemailer from 'nodemailer'BBBBBBBBBBBB
+import nodemailer from 'nodemailer'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const dbFile = path.join(__dirname, 'db.json')
