@@ -248,7 +248,11 @@ export function validateFileUpload(allowedTypes, maxSize = 5 * 1024 * 1024) {
 export function corsConfig() {
   return {
     origin: process.env.NODE_ENV === 'production' 
-      ? process.env.FRONTEND_URL || 'https://unknown.cc'
+      ? [
+          process.env.FRONTEND_URL || 'https://exquisite-tanuki-2c779a.netlify.app',
+          'https://exquisite-tanuki-2c779a.netlify.app',
+          'https://unknown.cc'
+        ]
       : true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
