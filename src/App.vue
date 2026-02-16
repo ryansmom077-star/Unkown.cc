@@ -46,6 +46,7 @@ function goToSecurity() {
         <a href="#" @click.prevent="router.push('/members')">Members</a>
         <a href="#" @click.prevent="router.push('/tickets')">Tickets</a>
         <a href="#" @click.prevent="router.push('/store')">Products</a>
+        <a href="#" @click.prevent="router.push('/register')">Register</a>
         <a v-if="isAdminComputed" href="#" @click.prevent="router.push('/admin')" style="color:#00ff88">Admin</a>
       </nav>
       <div class="user-area">

@@ -592,18 +592,6 @@ watch([activeTab, isOwnProfile], ([tab]) => {
           <textarea class="input" v-model="bio" placeholder="Tell us about yourself..." style="min-height:80px;width:100%"></textarea>
 
           <div style="margin-top:16px">
-            <label style="display:block;margin-bottom:4px;color:#d9eef5;font-size:12px">Profile Picture</label>
-            <div v-if="pfpFileName" style="color:#00ff88;font-size:12px;margin-bottom:8px">
-              ✓ Selected: {{ pfpFileName }}
-            </div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <input type="file" :accept="allowedImageTypes.join(',')" @change="handlePfpSelect" style="display:block;color:#d9eef5;font-size:12px" />
-              <button v-if="pfpDisplay" class="create-btn" @click="openAdjust('pfp')" style="padding:4px 10px;font-size:11px">Readjust</button>
-            </div>
-            <div style="color:#9bb0bd;font-size:11px;margin-top:6px">Allowed: {{ allowedImageLabel }}</div>
-          </div>
-
-          <div style="margin-top:16px">
             <label style="display:block;margin-bottom:4px;color:#d9eef5;font-size:12px">Banner</label>
             <div v-if="bannerFileName" style="color:#00ff88;font-size:12px;margin-bottom:8px">
               ✓ Selected: {{ bannerFileName }}
