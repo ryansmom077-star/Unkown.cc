@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { API_BASE } from '../lib/apiBase'
+import PasswordStrength from '../components/PasswordStrength.vue'
 
 const router = useRouter()
 const username = ref('')
@@ -13,11 +14,11 @@ const error = ref('')
 const success = ref('')
 
 function validateUsername() {
-  if (username.value.length < 3 || username.value.length > 25) {
-    return 'Username must be 3-25 characters'
+  if (username.value.length < 3 || username.value.length > 30) {
+    return 'Username must be 3-30 characters'
   }
-  if (!/^[a-zA-Z0-9_]+$/.test(username.value)) {
-    return 'Username must be alphanumeric'
+  if (!/^[a-zA-Z0-9._-]+$/.test(username.value)) {
+    return 'Username can only contain letters, numbers, dots, underscores and hyphens'
   }
   return ''
 }
@@ -28,7 +29,11 @@ function validateEmail() {
 }
 
 function validatePassword() {
-  if (password.value.length < 6) return 'Password must be at least 6 characters'
+  if (password.value.length < 8) return 'Password must be at least 8 characters'
+  if (!/[A-Z]/.test(password.value)) return 'Password must contain an uppercase letter'
+  if (!/[a-z]/.test(password.value)) return 'Password must contain a lowercase letter'
+  if (!/\d/.test(password.value)) return 'Password must contain a number'
+  if (!/[@$!%*?&#]/.test(password.value)) return 'Password must contain a special character (@$!%*?&#)'
   if (password.value !== confirmPassword.value) return 'Passwords do not match'
   return ''
 }
@@ -97,7 +102,7 @@ async function submit() {
               <input class="input" type="password" v-model="confirmPassword" placeholder="••••••" />
             </div>
           </div>
-          <p style="margin:4px 0 0;color:#9bb0bd;font-size:12px">Passwords must be at least 6 characters long. Passwords are case sensitive.</p>
+          <PasswordStrength :password="password" />
         </div>
         <div style="margin-bottom:12px">
           <label style="display:block;margin-bottom:4px;color:#d9eef5;font-size:14px">
