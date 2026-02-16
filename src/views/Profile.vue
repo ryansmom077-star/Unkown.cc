@@ -75,6 +75,11 @@ const invitesError = ref('')
 const canGenerateInvites = ref(false)
 const inviteGenerateCount = ref(1)
 
+const notifications = ref([])
+const unreadCount = ref(0)
+const notificationsLoading = ref(false)
+const notificationsError = ref('')
+
 const securityEmail = ref('')
 const twoFaEnabled = ref(false)
 const twoFaCode = ref('')
@@ -92,6 +97,65 @@ const cropImageStyle = computed(() => {
     cursor: isDragging.value ? 'grabbing' : 'grab'
   }
 })
+
+async function loadNotifications() {
+  if (!isOwnProfile.value) return
+  notificationsLoading.value = true
+  notificationsError.value = ''
+  try {
+    const res = await fetch(`${API_BASE}/api/notifications`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to load notifications')
+    const data = await res.json()
+    notifications.value = data.notifications || []
+    unreadCount.value = data.unreadCount || 0
+  } catch (err) {
+    notificationsError.value = err.message
+  } finally {
+    notificationsLoading.value = false
+  }
+}
+
+async function markNotificationRead(notificationId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/notifications/${notificationId}/read`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to mark notification as read')
+    await loadNotifications()
+  } catch (err) {
+    console.error('Error marking notification as read:', err)
+  }
+}
+
+async function deleteNotification(notificationId) {
+  if (!confirm('Delete this notification?')) return
+  try {
+    const res = await fetch(`${API_BASE}/api/notifications/${notificationId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to delete notification')
+    await loadNotifications()
+  } catch (err) {
+    console.error('Error deleting notification:', err)
+  }
+}
+
+async function markAllRead() {
+  try {
+    const res = await fetch(`${API_BASE}/api/notifications/read-all`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to mark all as read')
+    await loadNotifications()
+  } catch (err) {
+    console.error('Error marking all as read:', err)
+  }
+}
 
 async function loadProfile() {
   const userId = route.params.id || currentUser.id
@@ -443,6 +507,7 @@ watch([activeTab, isOwnProfile], ([tab]) => {
   if (!isOwnProfile.value) return
   if (tab === 'invites') loadInvites()
   if (tab === 'security') loadSecurity()
+  if (tab === 'notifications') loadNotifications()
 })
 </script>
 
@@ -466,8 +531,12 @@ watch([activeTab, isOwnProfile], ([tab]) => {
 
     <div style="display:flex;gap:12px;margin-bottom:18px;border-bottom:1px solid rgba(0,255,136,0.2)">
       <button class="create-btn" @click="activeTab='profile'" :style="{background:activeTab==='profile' ? '#00ff88' : '#2a3a45',color:activeTab==='profile' ? '#061218' : '#d9eef5'}">Profile</button>
-      <button class="create-btn" @click="activeTab='invites'" :style="{background:activeTab==='invites' ? '#00ff88' : '#2a3a45',color:activeTab==='invites' ? '#061218' : '#d9eef5'}">Invites</button>
-      <button class="create-btn" @click="activeTab='security'" :style="{background:activeTab==='security' ? '#00ff88' : '#2a3a45',color:activeTab==='security' ? '#061218' : '#d9eef5'}">Security</button>
+      <button v-if="isOwnProfile" class="create-btn" @click="activeTab='notifications'" :style="{background:activeTab==='notifications' ? '#00ff88' : '#2a3a45',color:activeTab==='notifications' ? '#061218' : '#d9eef5',position:'relative'}">
+        Notifications
+        <span v-if="unreadCount > 0" style="position:absolute;top:-6px;right:-6px;background:#ff6b6b;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:bold">{{ unreadCount }}</span>
+      </button>
+      <button v-if="isOwnProfile" class="create-btn" @click="activeTab='invites'" :style="{background:activeTab==='invites' ? '#00ff88' : '#2a3a45',color:activeTab==='invites' ? '#061218' : '#d9eef5'}">Invites</button>
+      <button v-if="isOwnProfile" class="create-btn" @click="activeTab='security'" :style="{background:activeTab==='security' ? '#00ff88' : '#2a3a45',color:activeTab==='security' ? '#061218' : '#d9eef5'}">Security</button>
     </div>
 
     <div v-if="activeTab === 'profile'">
@@ -611,6 +680,69 @@ watch([activeTab, isOwnProfile], ([tab]) => {
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notifications Tab -->
+    <div v-else-if="activeTab === 'notifications'">
+      <div style="background:var(--card);border:1px solid rgba(0,255,136,0.1);border-radius:8px;padding:18px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2 style="margin:0">Notifications</h2>
+          <button v-if="unreadCount > 0" class="create-btn" @click="markAllRead" style="padding:6px 12px;font-size:12px">Mark All as Read</button>
+        </div>
+        
+        <div v-if="notificationsError" style="color:#ff6b6b;margin-bottom:12px">{{ notificationsError }}</div>
+        <div v-if="notificationsLoading" style="text-align:center;color:#9bb0bd;padding:20px">Loading notifications...</div>
+        
+        <div v-else-if="!notifications.length" style="text-align:center;color:#9bb0bd;padding:40px">
+          <div style="font-size:48px;margin-bottom:12px">🔔</div>
+          <div>No notifications yet</div>
+        </div>
+        
+        <div v-else style="display:flex;flex-direction:column;gap:12px">
+          <div v-for="notification in notifications" :key="notification.id" 
+               :style="{
+                 background: notification.read ? 'rgba(0,255,136,0.03)' : 'rgba(0,255,136,0.1)',
+                 border: '1px solid rgba(0,255,136,0.1)',
+                 borderRadius: '8px',
+                 padding: '16px',
+                 borderLeft: notification.read ? '3px solid #2a3a45' : '3px solid #00ff88'
+               }">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+              <div style="flex:1">
+                <div style="color:#00ffcc;font-weight:600;font-size:14px;margin-bottom:4px">{{ notification.title }}</div>
+                <div style="color:#d9eef5;font-size:13px;margin-bottom:8px">{{ notification.message }}</div>
+                
+                <!-- Special handling for invite key notifications -->
+                <div v-if="notification.type === 'invite_key' && notification.data?.key" 
+                     style="background:rgba(0,255,136,0.15);padding:12px;border-radius:6px;margin-top:8px">
+                  <div style="color:#00ff88;font-size:11px;font-weight:600;margin-bottom:6px">Your Invite Key:</div>
+                  <div style="font-family:monospace;color:#00ffcc;font-size:14px;font-weight:600;letter-spacing:1px">
+                    {{ notification.data.key }}
+                  </div>
+                  <div style="color:#9bb0bd;font-size:11px;margin-top:6px">
+                    From: {{ notification.data.sentBy }}
+                  </div>
+                </div>
+                
+                <div style="color:#9bb0bd;font-size:11px;margin-top:8px">
+                  {{ new Date(notification.createdAt).toLocaleString() }}
+                </div>
+              </div>
+              
+              <div style="display:flex;gap:8px;margin-left:12px">
+                <button v-if="!notification.read" @click="markNotificationRead(notification.id)" 
+                        class="create-btn" style="padding:4px 8px;font-size:11px;background:#00ff88">
+                  Mark Read
+                </button>
+                <button @click="deleteNotification(notification.id)" 
+                        class="create-btn" style="padding:4px 8px;font-size:11px;background:#ff6b6b">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -78,6 +78,11 @@ const uidTarget = ref(null)
 const newUid = ref('')
 const uidSubmitting = ref(false)
 
+const inviteModalOpen = ref(false)
+const inviteTarget = ref(null)
+const inviteMessage = ref('')
+const inviteSubmitting = ref(false)
+
 const token = localStorage.getItem('token')
 const user = JSON.parse(localStorage.getItem('user') || '{}')
 
@@ -615,6 +620,43 @@ async function submitUidChange() {
   }
 }
 
+function openInviteModal(user) {
+  inviteTarget.value = user
+  inviteMessage.value = ''
+  inviteModalOpen.value = true
+}
+
+function closeInviteModal() {
+  inviteModalOpen.value = false
+  inviteTarget.value = null
+  inviteMessage.value = ''
+}
+
+async function submitSendInvite() {
+  if (!inviteTarget.value) return
+
+  error.value = ''
+  inviteSubmitting.value = true
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/send-invite-to-user`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ 
+        userId: inviteTarget.value.id,
+        message: inviteMessage.value || undefined
+      })
+    })
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed to send invite')
+    const data = await res.json()
+    success.value = `Invite key sent to ${inviteTarget.value.username}`
+    closeInviteModal()
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    inviteSubmitting.value = false
+  }
+}
+
 async function createRank() {
   if (!isAdmin) return alert('Admin only')
   error.value = ''
@@ -976,7 +1018,8 @@ onMounted(loadData)
                           <button v-if="isAdmin" @click="openEmailModal(usr); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#00ffcc;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Change Email</button>
                           <button v-if="isAdmin" @click="openUidModal(usr); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#00ffcc;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Change UID</button>
                           <button v-if="isAdmin" @click="revokeUserAccess(usr.id); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#ffa500;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Revoke Key Access</button>
-                          <button v-if="isAdmin" @click="generateInviteKey(); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#00ff88;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Generate Invite Key</button>
+                          <button v-if="isAdmin" @click="openInviteModal(usr); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#00ff88;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Send Invite Key</button>
+                          <button v-if="isAdmin" @click="generateInviteKey(); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#51cf66;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Generate Key (Clipboard)</button>
                           <button v-if="isAdmin" @click="banUser(usr.id); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#ff6b6b;cursor:pointer">
                             {{ usr.banned ? 'Unban' : 'Ban' }}
                           </button>
@@ -1268,6 +1311,31 @@ onMounted(loadData)
         <div style="margin-top:16px;display:flex;gap:8px">
           <button class="create-btn" @click="submitUidChange" :disabled="uidSubmitting" style="flex:1">{{ uidSubmitting ? 'Updating...' : 'Change UID' }}</button>
           <button class="create-btn" @click="closeUidModal" style="background:#666;flex:1">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Send Invite Modal -->
+    <div v-if="inviteModalOpen" style="position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:2000">
+      <div style="width:min(520px,92vw);background:#0b1b22;border:1px solid rgba(0,255,136,0.2);border-radius:12px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,0.45)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-size:16px;color:#00ff88;font-weight:600">Send Invite Key to User</div>
+          <button class="create-btn" @click="closeInviteModal" style="padding:4px 10px;font-size:12px;background:#2a3a45">Close</button>
+        </div>
+        <div style="color:#9bb0bd;font-size:12px;margin-bottom:10px">Recipient: {{ inviteTarget?.username }}</div>
+        <div style="color:#9bb0bd;font-size:11px;margin-bottom:14px">UID: #{{ inviteTarget?.uid }}</div>
+
+        <label style="display:block;margin-bottom:6px;color:#d9eef5;font-size:12px">Message (Optional)</label>
+        <textarea class="input" v-model="inviteMessage" placeholder="Add a custom message for this user..." style="min-height:80px;resize:vertical"></textarea>
+        
+        <div style="background:rgba(0,255,136,0.1);padding:10px;border-radius:6px;margin-top:12px">
+          <div style="color:#00ff88;font-size:11px;font-weight:600;margin-bottom:4px">Note:</div>
+          <div style="color:#9bb0bd;font-size:11px">A new invite key will be generated and sent to this user's notifications. They can view it in their profile.</div>
+        </div>
+
+        <div style="margin-top:16px;display:flex;gap:8px">
+          <button class="create-btn" @click="submitSendInvite" :disabled="inviteSubmitting" style="flex:1">{{ inviteSubmitting ? 'Sending...' : 'Send Invite Key' }}</button>
+          <button class="create-btn" @click="closeInviteModal" style="background:#666;flex:1">Cancel</button>
         </div>
       </div>
     </div>
