@@ -55,7 +55,7 @@ function goToSecurity() {
             <button @click="showUserMenu = !showUserMenu" style="background:transparent;border:none;color:#00ff88;cursor:pointer;font-weight:600">
               {{ user.username }} ▼
             </button>
-            <div v-if="showUserMenu" style="position:absolute;top:100%;right:0;background:var(--card);border:1px solid rgba(0,255,136,0.2);border-radius:6px;min-width:150px;z-index:1000">
+            <div v-if="showUserMenu" style="position:absolute;top:100%;right:0;background:#0b1b22;border:1px solid rgba(0,255,136,0.2);border-radius:6px;min-width:150px;z-index:1000">
               <a href="/profile" @click="goToProfile" style="display:block;padding:10px 16px;color:#00ff88;text-decoration:none;border-bottom:1px solid rgba(0,255,136,0.1);cursor:pointer">My Profile</a>
               <a href="/profile?tab=security" @click="goToSecurity" style="display:block;padding:10px 16px;color:#d9eef5;text-decoration:none;border-bottom:1px solid rgba(0,255,136,0.1);cursor:pointer">Security</a>
               <button @click="logout" style="display:block;width:100%;padding:10px 16px;color:#ff6b6b;text-decoration:none;background:transparent;border:none;text-align:left;cursor:pointer">Logout</button>

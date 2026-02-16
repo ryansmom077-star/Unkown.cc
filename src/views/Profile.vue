@@ -541,8 +541,13 @@ watch([activeTab, isOwnProfile], ([tab]) => {
 
     <div v-if="activeTab === 'profile'">
       <!-- Banner -->
-      <div v-if="!editMode && bannerDisplay" style="background:var(--card);border:1px solid rgba(0,255,136,0.1);border-radius:8px;margin-bottom:20px;overflow:hidden;height:150px">
-        <img :src="bannerDisplay" style="width:100%;height:100%;object-fit:cover" />
+      <div v-if="bannerDisplay || (editMode && isOwnProfile)" style="background:var(--card);border:1px solid rgba(0,255,136,0.1);border-radius:8px;margin-bottom:20px;overflow:hidden;height:150px;position:relative">
+        <img v-if="bannerDisplay" :src="bannerDisplay" style="width:100%;height:100%;object-fit:cover" />
+        <div v-else style="width:100%;height:100%;background:linear-gradient(135deg,#0b1b22,#061218);display:flex;align-items:center;justify-content:center;color:#9bb0bd">No banner</div>
+        <label v-if="editMode && isOwnProfile" style="position:absolute;bottom:8px;right:8px;padding:6px 12px;background:#00ff88;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:#061218;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,0.3)">
+          <input type="file" :accept="allowedImageTypes.join(',')" @change="handleBannerSelect" style="display:none" />
+          📷 Upload Banner
+        </label>
       </div>
 
     <!-- Profile Header -->
@@ -597,7 +602,6 @@ watch([activeTab, isOwnProfile], ([tab]) => {
               ✓ Selected: {{ bannerFileName }}
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <input type="file" :accept="allowedImageTypes.join(',')" @change="handleBannerSelect" style="display:block;color:#d9eef5;font-size:12px" />
               <button v-if="bannerDisplay" class="create-btn" @click="openAdjust('banner')" style="padding:4px 10px;font-size:11px">Readjust</button>
             </div>
             <div style="color:#9bb0bd;font-size:11px;margin-top:6px">Allowed: {{ allowedImageLabel }}</div>
