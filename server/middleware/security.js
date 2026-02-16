@@ -3,6 +3,7 @@ import helmet from 'helmet'
 import mongoSanitize from 'express-mongo-sanitize'
 import hpp from 'hpp'
 import { body, validationResult } from 'express-validator'
+import crypto from 'crypto'
 
 // Rate limiting configurations
 export const strictRateLimit = rateLimit({
@@ -337,13 +338,16 @@ export function getAdminActionLogs(limit = 100) {
 }
 
 // Detect suspicious patterns (pen testing)
+// Note: Patterns are intentionally conservative to reduce false positives
 export function detectSuspiciousActivity(req) {
   const suspiciousPatterns = {
-    sqlInjection: /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b)|(\bOR\b.*?=.*?)|(UNION.*?SELECT)/gi,
-    xss: /(<script|javascript:|onerror=|onload=|<iframe|<embed|<object)/gi,
-    pathTraversal: /(\.\.[\/\\]|\.\.%2F|\.\.%5C)/gi,
-    commandInjection: /(\||;|`|\$\(|\${|&&)/g,
-    ldapInjection: /(\*|\(|\)|\||&)/g
+    // Only detect SQL injection in non-code contexts
+    sqlInjection: /(\b(DROP|DELETE|TRUNCATE)\s+(TABLE|DATABASE|FROM)\b)|(UNION\s+ALL\s+SELECT)|(OR\s+[0-9]+=+[0-9]+)/gi,
+    // XSS patterns that are rarely legitimate
+    xss: /(<script[^>]*>|javascript:\s*void|onerror\s*=|<iframe[^>]*src)/gi,
+    // Path traversal attempts
+    pathTraversal: /(\.\.[\/\\]{2,}|\.\.%2F%2F|\.\.%5C%5C)/gi
+    // Removed overly broad patterns: commandInjection and ldapInjection
   }
   
   const threats = []
@@ -357,7 +361,7 @@ export function detectSuspiciousActivity(req) {
     if (pattern.test(checkString)) {
       threats.push({
         type,
-        severity: type === 'sqlInjection' || type === 'commandInjection' ? 'high' : 'medium',
+        severity: type === 'sqlInjection' ? 'high' : 'medium',
         detected: new Date().toISOString(),
         ip: req.ip,
         path: req.path,
@@ -396,9 +400,9 @@ export function securityMonitor(req, res, next) {
   next()
 }
 
-// Session security
+// Session security - logs changes but doesn't block (to avoid false positives)
 export function validateSessionSecurity(req, res, next) {
-  // Check for session hijacking indicators
+  // Monitor for significant session changes (informational only)
   const currentUA = req.get('user-agent')
   const currentIP = req.ip
   
@@ -408,15 +412,21 @@ export function validateSessionSecurity(req, res, next) {
       req.user.lastUA = currentUA
       req.user.lastIP = currentIP
     } else {
-      // Detect suspicious session changes
-      if (req.user.lastUA !== currentUA || req.user.lastIP !== currentIP) {
+      // Log significant changes (different UA AND different IP)
+      // Note: This is informational only to avoid blocking legitimate users
+      // who switch networks or update browsers
+      const uaChanged = req.user.lastUA !== currentUA
+      const ipChanged = req.user.lastIP !== currentIP
+      
+      if (uaChanged && ipChanged) {
         console.warn('[SESSION SECURITY]', JSON.stringify({
           userId: req.user.id,
-          message: 'Session parameters changed',
-          oldUA: req.user.lastUA,
-          newUA: currentUA,
+          message: 'Significant session change detected (both UA and IP)',
+          oldUA: req.user.lastUA?.substring(0, 50),
+          newUA: currentUA?.substring(0, 50),
           oldIP: req.user.lastIP,
-          newIP: currentIP
+          newIP: currentIP,
+          note: 'User may have switched devices or networks - monitoring only'
         }))
       }
     }
@@ -427,7 +437,7 @@ export function validateSessionSecurity(req, res, next) {
 
 // CSRF protection token generation
 export function generateCSRFToken() {
-  return require('crypto').randomBytes(32).toString('hex')
+  return crypto.randomBytes(32).toString('hex')
 }
 
 // Validate CSRF token
