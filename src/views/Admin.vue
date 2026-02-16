@@ -1,8 +1,10 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { API_BASE } from '../lib/apiBase'
 import logoPng from '../assets/logo.png'
 
+const router = useRouter()
 const keys = ref([])
 const users = ref([])
 const ranks = ref([])
@@ -322,25 +324,27 @@ async function loadRanks() {
     })
     if (!res.ok) throw new Error('Failed to load ranks')
     const loadedRanks = await res.json()
-    // Ensure permissions object exists and is reactive for each rank
+    // Define all possible permissions with default values
+    const defaultPermissions = {
+      forum_access: false,
+      create_threads: false,
+      create_posts: false,
+      delete_own_posts: false,
+      view_tickets: false,
+      create_tickets: false,
+      generate_invites: false,
+      ban_users: false,
+      delete_posts: false,
+      delete_threads: false,
+      manage_forum: false,
+      change_user_email: false,
+      change_user_uid: false,
+      revoke_key_access: false
+    }
+    // Ensure permissions object exists and all keys are present for each rank
     ranks.value = loadedRanks.map(rank => ({
       ...rank,
-      permissions: rank.permissions || {
-        forum_access: false,
-        create_threads: false,
-        create_posts: false,
-        delete_own_posts: false,
-        view_tickets: false,
-        create_tickets: false,
-        generate_invites: false,
-        ban_users: false,
-        delete_posts: false,
-        delete_threads: false,
-        manage_forum: false,
-        change_user_email: false,
-        change_user_uid: false,
-        revoke_key_access: false
-      }
+      permissions: { ...defaultPermissions, ...(rank.permissions || {}) }
     }))
   } catch (err) {
     console.warn('Ranks endpoint not ready')
@@ -708,6 +712,24 @@ async function updateRankPermissions(rankId) {
   const rank = ranks.value.find(r => r.id === rankId)
   if (!rank) return
   
+  // Ensure all permissions are explicitly set (including false values)
+  const permissions = {
+    forum_access: !!rank.permissions.forum_access,
+    create_threads: !!rank.permissions.create_threads,
+    create_posts: !!rank.permissions.create_posts,
+    delete_own_posts: !!rank.permissions.delete_own_posts,
+    view_tickets: !!rank.permissions.view_tickets,
+    create_tickets: !!rank.permissions.create_tickets,
+    generate_invites: !!rank.permissions.generate_invites,
+    ban_users: !!rank.permissions.ban_users,
+    delete_posts: !!rank.permissions.delete_posts,
+    delete_threads: !!rank.permissions.delete_threads,
+    manage_forum: !!rank.permissions.manage_forum,
+    change_user_email: !!rank.permissions.change_user_email,
+    change_user_uid: !!rank.permissions.change_user_uid,
+    revoke_key_access: !!rank.permissions.revoke_key_access
+  }
+  
   try {
     const res = await fetch(`${API_BASE}/api/admin/ranks/${rankId}/permissions`, {
       method: 'POST',
@@ -715,7 +737,7 @@ async function updateRankPermissions(rankId) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({ permissions: rank.permissions })
+      body: JSON.stringify({ permissions })
     })
     
     if (!res.ok) throw new Error('Failed to update permissions')
@@ -1012,6 +1034,10 @@ onMounted(loadData)
                       <div style="position:relative;display:inline-block">
                         <button class="create-btn" @click="toggleUserMenu(usr.id, $event)" style="padding:6px 12px;font-size:16px;font-weight:bold;background:linear-gradient(135deg,#00ff88,#00ffcc);color:#061218;border-radius:8px;box-shadow:0 2px 8px rgba(0,255,136,0.3);transition:all 0.2s">⋮</button>
                         <div v-if="openUserMenuId === usr.id" :style="{position:'fixed',left:userMenuX + 'px',top:userMenuY + 'px',background:'linear-gradient(135deg,#0b1b22,#061218)',border:'2px solid rgba(0,255,136,0.3)',borderRadius:'12px',minWidth:'240px',zIndex:1000,boxShadow:'0 16px 40px rgba(0,0,0,0.6), 0 0 20px rgba(0,255,136,0.2)',padding:'8px 0',backdropFilter:'blur(10px)'}">
+                          <!-- Section: View -->
+                          <div style="padding:8px 12px;color:#00ff88;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid rgba(0,255,136,0.1)">Profile</div>
+                          <button @click="router.push(`/profile/${usr.id}`); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:10px 16px;background:transparent;border:none;color:#d9eef5;cursor:pointer;transition:all 0.2s;font-size:13px;border-bottom:1px solid rgba(0,255,136,0.1)" onmouseover="this.style.background='rgba(0,255,136,0.1)';this.style.color='#00ff88'" onmouseout="this.style.background='transparent';this.style.color='#d9eef5'">👤 View Profile</button>
+                          
                           <!-- Section: Staff Roles -->
                           <div style="padding:8px 12px;color:#00ff88;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid rgba(0,255,136,0.1)">Staff Roles</div>
                           <button v-if="isAdmin" @click="setStaffRole(usr.id, 'admin'); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:10px 16px;background:transparent;border:none;color:#d9eef5;cursor:pointer;transition:all 0.2s;font-size:13px" onmouseover="this.style.background='rgba(0,255,136,0.1)';this.style.color='#00ff88'" onmouseout="this.style.background='transparent';this.style.color='#d9eef5'">👑 Make Admin</button>
