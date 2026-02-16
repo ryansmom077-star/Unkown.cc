@@ -2145,6 +2145,34 @@ app.post('/api/admin/send-invite-to-user', authMiddleware, strictRateLimit, asyn
   })
 })
 
+// Root route - API information
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Unknown.cc Forum API',
+    status: 'running',
+    version: '1.0.0',
+    documentation: {
+      api_base: '/api',
+      endpoints: {
+        forums: '/api/forums/categories',
+        auth: '/api/auth/login',
+        admin: '/api/admin/*'
+      }
+    },
+    frontend: 'https://exquisite-tanuki-2c779a.netlify.app',
+    repository: 'https://github.com/ryansmom077-star/Unkown.cc'
+  })
+})
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  })
+})
+
 app.listen(PORT, HOST, () => {
   console.log(`Server listening on http://${HOST}:${PORT}`)
 })
