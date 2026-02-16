@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { API_BASE } from '../lib/apiBase'
 
 const token = localStorage.getItem('token')
@@ -44,7 +44,6 @@ function filterTickets() {
   filteredTickets.value = tickets.value.filter(t => (t.username && t.username.toLowerCase().includes(q)) || (t.createdByUsername && t.createdByUsername.toLowerCase().includes(q)))
 }
 
-import { computed } from 'vue'
 const openTickets = computed(() => {
   return filteredTickets.value.filter(t => t.status !== 'closed' && t.status !== 'resolved')
 })
@@ -149,7 +148,6 @@ function getStatusColor(status) {
 onMounted(loadTickets)
 
 // Watch searchUser for filtering
-import { watch } from 'vue'
 watch(searchUser, filterTickets)
 </script>
 

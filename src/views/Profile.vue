@@ -430,7 +430,14 @@ async function updateProfile() {
   }
 }
 
-onMounted(loadProfile)
+onMounted(() => {
+  loadProfile()
+  // Check if there's a tab query parameter
+  const tabParam = route.query.tab
+  if (tabParam && ['profile', 'invites', 'security'].includes(tabParam)) {
+    activeTab.value = tabParam
+  }
+})
 
 watch([activeTab, isOwnProfile], ([tab]) => {
   if (!isOwnProfile.value) return

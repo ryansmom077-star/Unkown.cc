@@ -347,8 +347,8 @@ app.post('/api/auth/login', async (req, res) => {
     await db.write()
     const tempToken = jwt.sign({ id: user.id, purpose: '2fa-login' }, JWT_SECRET, { expiresIn: '10m' })
     
-    if (!emailSent) {
-      // SMTP not configured - include code in response for development/testing
+    if (!emailSent && process.env.NODE_ENV !== 'production') {
+      // SMTP not configured - include code in response for development/testing ONLY
       return res.json({ requiresTwoFa: true, tempToken, devCode: code, message: 'Email not configured. Use code: ' + code })
     }
     
@@ -1297,8 +1297,8 @@ app.post('/api/auth/2fa/request-enable', authMiddleware, async (req, res) => {
   const emailSent = await sendEmail(user.email, 'Unknown.cc 2FA Code', `Your 2FA code is ${code}`, html)
   await db.write()
   
-  if (!emailSent) {
-    // SMTP not configured - return code in response for development/testing
+  if (!emailSent && process.env.NODE_ENV !== 'production') {
+    // SMTP not configured - return code in response for development/testing ONLY
     return res.json({ message: 'Email not configured. Code (for testing): ' + code, code })
   }
   
@@ -1357,8 +1357,8 @@ app.post('/api/auth/2fa/request-disable', authMiddleware, async (req, res) => {
   const emailSent = await sendEmail(user.email, 'Unknown.cc 2FA Code', `Your 2FA code is ${code}`, html)
   await db.write()
   
-  if (!emailSent) {
-    // SMTP not configured - return code in response for development/testing
+  if (!emailSent && process.env.NODE_ENV !== 'production') {
+    // SMTP not configured - return code in response for development/testing ONLY
     return res.json({ message: 'Email not configured. Code (for testing): ' + code, code })
   }
   
@@ -1556,8 +1556,8 @@ app.post('/api/auth/password-reset/request', async (req, res) => {
 
   await db.write()
   
-  if (!emailSent) {
-    // SMTP not configured - return code in response for development/testing
+  if (!emailSent && process.env.NODE_ENV !== 'production') {
+    // SMTP not configured - return code in response for development/testing ONLY
     return res.json({ message: 'Email not configured. Code (for testing): ' + code, code })
   }
   

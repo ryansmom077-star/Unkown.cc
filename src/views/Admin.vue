@@ -975,9 +975,9 @@ onMounted(loadData)
                           <button v-if="isAdmin" @click="setStaffRole(usr.id, null); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#d9eef5;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Remove Staff</button>
                           <button v-if="isAdmin" @click="openEmailModal(usr); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#00ffcc;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Change Email</button>
                           <button v-if="isAdmin" @click="openUidModal(usr); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#00ffcc;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Change UID</button>
-                          <button v-if="isAdmin" @click="revokeUserAccess(usr.id)" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#ffa500;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Revoke Key Access</button>
+                          <button v-if="isAdmin" @click="revokeUserAccess(usr.id); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#ffa500;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Revoke Key Access</button>
                           <button v-if="isAdmin" @click="generateInviteKey(); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#00ff88;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Generate Invite Key</button>
-                          <button v-if="isAdmin" @click="banUser(usr.id)" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#ff6b6b;cursor:pointer">
+                          <button v-if="isAdmin" @click="banUser(usr.id); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#ff6b6b;cursor:pointer">
                             {{ usr.banned ? 'Unban' : 'Ban' }}
                           </button>
                         </div>
