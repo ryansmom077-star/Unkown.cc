@@ -10,6 +10,24 @@ import { fileURLToPath } from 'url'
 import fs from 'fs'
 import Stripe from 'stripe'
 import nodemailer from 'nodemailer'
+import {
+  helmetConfig,
+  sanitizeInput,
+  corsConfig,
+  requestLogger,
+  authRateLimit,
+  strictRateLimit,
+  generalRateLimit,
+  apiRateLimit,
+  checkLoginAttempts,
+  recordLoginAttempt,
+  isTokenBlacklisted,
+  blacklistToken,
+  validateEmail,
+  validatePassword,
+  validateUsername,
+  handleValidationErrors
+} from './middleware/security.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const dbFile = path.join(__dirname, 'db.json')
@@ -33,7 +51,8 @@ const defaultData = {
   threads: [],
   posts: [],
   keys: [],
-  accountLogs: []
+  accountLogs: [],
+  notifications: []
 }
 
 const adapter = new JSONFile(dbFile)
@@ -179,11 +198,20 @@ function renderPasswordChangedEmail({ username, ip, browser, os, device }) {
 }
 
 const app = express()
-app.use(cors({ origin: true, credentials: true }))
-// Increase JSON body size limit to allow base64 image uploads
+
+// Security middleware - MUST be first
+app.use(helmetConfig)
+app.use(requestLogger)
+app.use(sanitizeInput)
+app.use(cors(corsConfig()))
+
+// Body parsing with size limits
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ limit: '10mb', extended: true }))
 app.set('trust proxy', 1)
+
+// General rate limiting for all routes
+app.use(generalRateLimit)
 
 // Ensure uploads directory exists and serve uploaded files
 const uploadsDir = path.join(__dirname, 'uploads')
@@ -212,7 +240,13 @@ function generateToken(user) {
   return jwt.sign({ id: user.id, username: user.username, role: user.role, staffRole: user.staffRole, roles: user.roles || [] }, JWT_SECRET, { expiresIn: '7d' })
 }
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', 
+  authRateLimit,
+  validateUsername,
+  validateEmail,
+  validatePassword,
+  handleValidationErrors,
+  async (req, res) => {
   const { username, password, email, inviteKey } = req.body
   const clientIp = getClientIp(req)
   const isAdmin = isAdminIp(clientIp)
@@ -296,16 +330,25 @@ app.post('/api/auth/register', async (req, res) => {
   res.json({ token, user: { id: user.id, uid: user.uid, username: user.username, email: user.email, role: user.role, staffRole: user.staffRole || null, roles: user.roles || [], accessRevoked: user.accessRevoked || false } })
 })
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authRateLimit, async (req, res) => {
   const { username, password, remember } = req.body
   const clientIp = getClientIp(req)
   const isAdmin = isAdminIp(clientIp)
 
   if (!username || !password) return res.status(400).json({ error: 'username and password required' })
 
+  // Check login attempts
+  const attemptCheck = checkLoginAttempts(username.toLowerCase())
+  if (!attemptCheck.allowed) {
+    return res.status(429).json({ error: attemptCheck.message })
+  }
+
   await db.read()
   const user = db.data.users.find(u => u.username.toLowerCase() === username.toLowerCase())
-  if (!user) return res.status(400).json({ error: 'invalid credentials' })
+  if (!user) {
+    recordLoginAttempt(username.toLowerCase(), false)
+    return res.status(400).json({ error: 'invalid credentials' })
+  }
 
   if (user.banned) {
     if (user.banExpiresAt && Date.now() > user.banExpiresAt) {
@@ -320,7 +363,13 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   const ok = await bcrypt.compare(password, user.passwordHash)
-  if (!ok) return res.status(400).json({ error: 'invalid credentials' })
+  if (!ok) {
+    recordLoginAttempt(username.toLowerCase(), false)
+    return res.status(400).json({ error: 'invalid credentials' })
+  }
+
+  // Successful login - reset attempts
+  recordLoginAttempt(username.toLowerCase(), true)
 
   if (user.twoFa?.enabled) {
     const code = generateSixDigitCode()
@@ -393,9 +442,16 @@ function authMiddleware(req, res, next) {
   const auth = req.headers.authorization
   if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'missing token' })
   const token = auth.split(' ')[1]
+  
+  // Check if token is blacklisted
+  if (isTokenBlacklisted(token)) {
+    return res.status(401).json({ error: 'token has been revoked' })
+  }
+  
   try {
     const payload = jwt.verify(token, JWT_SECRET)
     req.user = payload
+    req.token = token // Store token for potential blacklisting
     next()
   } catch (err) {
     return res.status(401).json({ error: 'invalid token' })
@@ -1270,7 +1326,7 @@ app.post('/api/tickets/:ticketId/close', authMiddleware, async (req, res) => {
 })
 
 // 2FA endpoints
-app.post('/api/auth/2fa/request-enable', authMiddleware, async (req, res) => {
+app.post('/api/auth/2fa/request-enable', authMiddleware, strictRateLimit, async (req, res) => {
   await db.read()
   const user = db.data.users.find(u => u.id === req.user.id)
   if (!user) return res.status(404).json({ error: 'user not found' })
@@ -1330,7 +1386,7 @@ app.post('/api/auth/2fa/enable', authMiddleware, async (req, res) => {
   res.json({ message: '2FA enabled' })
 })
 
-app.post('/api/auth/2fa/request-disable', authMiddleware, async (req, res) => {
+app.post('/api/auth/2fa/request-disable', authMiddleware, strictRateLimit, async (req, res) => {
   await db.read()
   const user = db.data.users.find(u => u.id === req.user.id)
   if (!user) return res.status(404).json({ error: 'user not found' })
@@ -1365,7 +1421,7 @@ app.post('/api/auth/2fa/request-disable', authMiddleware, async (req, res) => {
   res.json({ message: 'Code sent to email' })
 })
 
-app.post('/api/auth/2fa/disable', authMiddleware, async (req, res) => {
+app.post('/api/auth/2fa/disable', authMiddleware, strictRateLimit, async (req, res) => {
   const { code } = req.body
   if (!code) return res.status(400).json({ error: 'code required' })
 
@@ -1524,7 +1580,7 @@ app.post('/api/auth/change-password', authMiddleware, async (req, res) => {
   res.json({ message: 'password changed' })
 })
 
-app.post('/api/auth/password-reset/request', async (req, res) => {
+app.post('/api/auth/password-reset/request', strictRateLimit, validateEmail, handleValidationErrors, async (req, res) => {
   const { email } = req.body
   if (!email) return res.status(400).json({ error: 'email required' })
 
@@ -1564,7 +1620,7 @@ app.post('/api/auth/password-reset/request', async (req, res) => {
   res.json({ message: 'If the email exists, a code was sent.' })
 })
 
-app.post('/api/auth/password-reset/verify', async (req, res) => {
+app.post('/api/auth/password-reset/verify', strictRateLimit, async (req, res) => {
   const { email, code, newPassword } = req.body
   if (!email || !code || !newPassword) {
     return res.status(400).json({ error: 'email, code, and newPassword required' })
@@ -1919,6 +1975,136 @@ app.post('/api/store/checkout', authMiddleware, async (req, res) => {
   db.data.orders.push(order)
   await db.write()
   res.json(order)
+})
+
+// Logout endpoint
+app.post('/api/auth/logout', authMiddleware, (req, res) => {
+  if (req.token) {
+    blacklistToken(req.token)
+  }
+  res.json({ message: 'logged out successfully' })
+})
+
+// Notification endpoints
+app.get('/api/notifications', authMiddleware, apiRateLimit, async (req, res) => {
+  await db.read()
+  const notifications = (db.data.notifications || [])
+    .filter(n => n.userId === req.user.id)
+    .sort((a, b) => b.createdAt - a.createdAt)
+  
+  const unreadCount = notifications.filter(n => !n.read).length
+  
+  res.json({ notifications, unreadCount })
+})
+
+app.post('/api/notifications/:id/read', authMiddleware, async (req, res) => {
+  await db.read()
+  const notification = db.data.notifications.find(n => 
+    n.id === req.params.id && n.userId === req.user.id
+  )
+  
+  if (!notification) {
+    return res.status(404).json({ error: 'notification not found' })
+  }
+  
+  notification.read = true
+  notification.readAt = Date.now()
+  await db.write()
+  
+  res.json({ message: 'notification marked as read' })
+})
+
+app.delete('/api/notifications/:id', authMiddleware, async (req, res) => {
+  await db.read()
+  const index = db.data.notifications.findIndex(n => 
+    n.id === req.params.id && n.userId === req.user.id
+  )
+  
+  if (index === -1) {
+    return res.status(404).json({ error: 'notification not found' })
+  }
+  
+  db.data.notifications.splice(index, 1)
+  await db.write()
+  
+  res.json({ message: 'notification deleted' })
+})
+
+app.post('/api/notifications/read-all', authMiddleware, async (req, res) => {
+  await db.read()
+  const notifications = db.data.notifications.filter(n => n.userId === req.user.id)
+  
+  notifications.forEach(n => {
+    if (!n.read) {
+      n.read = true
+      n.readAt = Date.now()
+    }
+  })
+  
+  await db.write()
+  res.json({ message: 'all notifications marked as read' })
+})
+
+// Admin: Send invite key to user
+app.post('/api/admin/send-invite-to-user', authMiddleware, strictRateLimit, async (req, res) => {
+  if (req.user.staffRole !== 'admin') {
+    return res.status(403).json({ error: 'admin only' })
+  }
+  
+  const { userId, message } = req.body
+  
+  if (!userId) {
+    return res.status(400).json({ error: 'userId required' })
+  }
+  
+  await db.read()
+  
+  // Find the target user
+  const targetUser = db.data.users.find(u => u.id === userId)
+  if (!targetUser) {
+    return res.status(404).json({ error: 'user not found' })
+  }
+  
+  // Generate a new invite key
+  const key = nanoid()
+  const newKey = {
+    id: nanoid(),
+    key,
+    generatedBy: req.user.id,
+    generatedAt: Date.now(),
+    usedBy: null,
+    usedByUsername: null,
+    usedAt: null,
+    revoked: false,
+    revokedAt: null
+  }
+  
+  db.data.keys.push(newKey)
+  
+  // Create notification for the user
+  const notification = {
+    id: nanoid(),
+    userId: targetUser.id,
+    type: 'invite_key',
+    title: 'Invite Key Received',
+    message: message || 'An admin has sent you an invite key',
+    data: {
+      key: key,
+      sentBy: req.user.username
+    },
+    read: false,
+    createdAt: Date.now(),
+    readAt: null
+  }
+  
+  db.data.notifications.push(notification)
+  await db.write()
+  
+  res.json({ 
+    message: 'invite key sent to user',
+    key: key,
+    notification: notification
+  })
 })
 
 app.listen(PORT, HOST, () => {
