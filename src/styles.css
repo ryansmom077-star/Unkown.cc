@@ -64,3 +64,15 @@ body{background:linear-gradient(180deg,#041017 0%,#02121a 60%);color:#d9eef5;fon
   .user-area{display:none}
 }
 
+/* Fix dropdown white backgrounds */
+select {
+  background: rgba(0,50,40,0.2) !important;
+  color: #d9eef5 !important;
+}
+
+select option,
+select optgroup {
+  background: #07181d !important;
+  color: #d9eef5 !important;
+}
+

@@ -153,9 +153,19 @@ function onSearch() {
         ></div>
         
         <!-- Member Info -->
-        <div style="margin-bottom:12px">
+        <div style="margin-bottom:12px;cursor:pointer" @click="router.push(`/profile/${member.id}`)">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <!-- PFP or Avatar -->
             <div 
+              v-if="member.profile?.pfp"
+              style="width:40px;height:40px;border-radius:50%;overflow:hidden;border:2px solid #00ff88"
+            >
+              <img :src="member.profile.pfp.startsWith('http') ? member.profile.pfp : `${API_BASE}${member.profile.pfp}`" 
+                   style="width:100%;height:100%;object-fit:cover" 
+                   alt="Profile Picture" />
+            </div>
+            <div 
+              v-else
               style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#00ff88,#00ffcc);display:flex;align-items:center;justify-content:center;font-weight:bold;color:#061218"
             >
               {{ member.username.charAt(0).toUpperCase() }}

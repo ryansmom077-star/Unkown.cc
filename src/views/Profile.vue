@@ -471,13 +471,6 @@ watch([activeTab, isOwnProfile], ([tab]) => {
 
     <!-- Profile Header -->
     <div style="background:var(--card);border:1px solid rgba(0,255,136,0.1);border-radius:8px;padding:24px;margin-bottom:20px;position:relative">
-      <div v-if="editMode && isOwnProfile" style="position:absolute;top:12px;right:12px">
-        <label style="cursor:pointer;color:#00ff88;font-size:12px;display:block;margin-bottom:8px">
-          <input type="file" :accept="allowedImageTypes.join(',')" @change="handleBannerSelect" style="display:none" />
-          Change Banner
-        </label>
-        <button v-if="bannerDisplay" class="create-btn" @click="openAdjust('banner')" style="padding:4px 10px;font-size:11px">Readjust</button>
-      </div>
 
       <div style="display:flex;gap:20px;align-items:flex-start;margin-bottom:20px">
         <!-- PFP -->

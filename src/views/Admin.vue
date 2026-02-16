@@ -45,7 +45,10 @@ const rankPermissions = ref({
   ban_users: false,
   delete_posts: false,
   delete_threads: false,
-  manage_forum: false
+  manage_forum: false,
+  change_user_email: false,
+  change_user_uid: false,
+  revoke_key_access: false
 })
 
 const selectedRankForPermissions = ref(null)
@@ -64,6 +67,16 @@ const banTarget = ref(null)
 const banReason = ref('')
 const banDuration = ref('1d')
 const banSubmitting = ref(false)
+
+const emailModalOpen = ref(false)
+const emailTarget = ref(null)
+const newEmail = ref('')
+const emailSubmitting = ref(false)
+
+const uidModalOpen = ref(false)
+const uidTarget = ref(null)
+const newUid = ref('')
+const uidSubmitting = ref(false)
 
 const token = localStorage.getItem('token')
 const user = JSON.parse(localStorage.getItem('user') || '{}')
@@ -303,7 +316,27 @@ async function loadRanks() {
       headers: { Authorization: `Bearer ${token}` }
     })
     if (!res.ok) throw new Error('Failed to load ranks')
-    ranks.value = await res.json()
+    const loadedRanks = await res.json()
+    // Ensure permissions object exists and is reactive for each rank
+    ranks.value = loadedRanks.map(rank => ({
+      ...rank,
+      permissions: rank.permissions || {
+        forum_access: false,
+        create_threads: false,
+        create_posts: false,
+        delete_own_posts: false,
+        view_tickets: false,
+        create_tickets: false,
+        generate_invites: false,
+        ban_users: false,
+        delete_posts: false,
+        delete_threads: false,
+        manage_forum: false,
+        change_user_email: false,
+        change_user_uid: false,
+        revoke_key_access: false
+      }
+    }))
   } catch (err) {
     console.warn('Ranks endpoint not ready')
   }
@@ -488,6 +521,100 @@ async function banUser(userId) {
   closeUserMenu()
 }
 
+async function revokeUserAccess(userId) {
+  if (!confirm('Revoke forum access for this user? They will need to redeem a new key.')) return
+  error.value = ''
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/users/${userId}/revoke-access`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed to revoke access')
+    success.value = 'User access revoked'
+    await loadUsers()
+    closeUserMenu()
+  } catch (err) {
+    error.value = err.message
+  }
+}
+
+function openEmailModal(user) {
+  emailTarget.value = user
+  newEmail.value = user.email || ''
+  emailModalOpen.value = true
+}
+
+function closeEmailModal() {
+  emailModalOpen.value = false
+  emailTarget.value = null
+  newEmail.value = ''
+}
+
+async function submitEmailChange() {
+  if (!emailTarget.value) return
+  if (!newEmail.value.trim() || !newEmail.value.includes('@')) {
+    error.value = 'Valid email required'
+    return
+  }
+
+  error.value = ''
+  emailSubmitting.value = true
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/users/${emailTarget.value.id}/change-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ email: newEmail.value.trim() })
+    })
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed to change email')
+    success.value = 'User email updated'
+    await loadUsers()
+    closeEmailModal()
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    emailSubmitting.value = false
+  }
+}
+
+function openUidModal(user) {
+  uidTarget.value = user
+  newUid.value = String(user.uid || '')
+  uidModalOpen.value = true
+}
+
+function closeUidModal() {
+  uidModalOpen.value = false
+  uidTarget.value = null
+  newUid.value = ''
+}
+
+async function submitUidChange() {
+  if (!uidTarget.value) return
+  const uid = parseInt(newUid.value)
+  if (isNaN(uid) || uid < 1) {
+    error.value = 'Valid UID required (positive integer)'
+    return
+  }
+
+  error.value = ''
+  uidSubmitting.value = true
+  try {
+    const res = await fetch(`${API_BASE}/api/admin/users/${uidTarget.value.id}/change-uid`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ uid })
+    })
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed to change UID')
+    success.value = 'User UID updated'
+    await loadUsers()
+    closeUidModal()
+  } catch (err) {
+    error.value = err.message
+  } finally {
+    uidSubmitting.value = false
+  }
+}
+
 async function createRank() {
   if (!isAdmin) return alert('Admin only')
   error.value = ''
@@ -520,7 +647,10 @@ async function createRank() {
       ban_users: false,
       delete_posts: false,
       delete_threads: false,
-      manage_forum: false
+      manage_forum: false,
+      change_user_email: false,
+      change_user_uid: false,
+      revoke_key_access: false
     }
     await loadRanks()
   } catch (err) {
@@ -529,7 +659,7 @@ async function createRank() {
 }
 
 async function updateRankPermissions(rankId) {
-  if (!isAdmin || !selectedRankForPermissions.value) return
+  if (!isAdmin) return
   error.value = ''
   success.value = ''
   
@@ -839,12 +969,15 @@ onMounted(loadData)
                     <td style="padding:8px">
                       <div style="position:relative;display:inline-block">
                         <button class="create-btn" @click="toggleUserMenu(usr.id, $event)" style="padding:4px 10px;font-size:14px">...</button>
-                        <div v-if="openUserMenuId === usr.id" :style="{position:'fixed',left:userMenuX + 'px',top:userMenuY + 'px',background:'#0b1b22',border:'1px solid rgba(0,255,136,0.2)',borderRadius:'8px',minWidth:'180px',zIndex:1000,boxShadow:'0 12px 30px rgba(0,0,0,0.4)'}">
-                          <button v-if="isAdmin" @click="setStaffRole(usr.id, 'admin')" style="display:block;width:100%;text-align:left;padding:8px 10px;background:transparent;border:none;color:#d9eef5;cursor:pointer">Make Admin</button>
-                          <button v-if="isAdmin" @click="setStaffRole(usr.id, 'manager')" style="display:block;width:100%;text-align:left;padding:8px 10px;background:transparent;border:none;color:#d9eef5;cursor:pointer">Make Manager</button>
-                          <button v-if="isAdmin" @click="setStaffRole(usr.id, null)" style="display:block;width:100%;text-align:left;padding:8px 10px;background:transparent;border:none;color:#d9eef5;cursor:pointer">Remove Staff</button>
-                          <button v-if="isAdmin" @click="generateInviteKey(); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 10px;background:transparent;border:none;color:#00ff88;cursor:pointer">Generate Invite Key</button>
-                          <button v-if="isAdmin" @click="banUser(usr.id); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 10px;background:transparent;border:none;color:#ff6b6b;cursor:pointer">
+                        <div v-if="openUserMenuId === usr.id" :style="{position:'fixed',left:userMenuX + 'px',top:userMenuY + 'px',background:'#0b1b22',border:'1px solid rgba(0,255,136,0.2)',borderRadius:'8px',minWidth:'200px',zIndex:1000,boxShadow:'0 12px 30px rgba(0,0,0,0.4)'}">
+                          <button v-if="isAdmin" @click="setStaffRole(usr.id, 'admin'); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#d9eef5;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Make Admin</button>
+                          <button v-if="isAdmin" @click="setStaffRole(usr.id, 'manager'); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#d9eef5;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Make Manager</button>
+                          <button v-if="isAdmin" @click="setStaffRole(usr.id, null); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#d9eef5;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Remove Staff</button>
+                          <button v-if="isAdmin" @click="openEmailModal(usr); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#00ffcc;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Change Email</button>
+                          <button v-if="isAdmin" @click="openUidModal(usr); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#00ffcc;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Change UID</button>
+                          <button v-if="isAdmin" @click="revokeUserAccess(usr.id)" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#ffa500;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Revoke Key Access</button>
+                          <button v-if="isAdmin" @click="generateInviteKey(); closeUserMenu()" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#00ff88;cursor:pointer;border-bottom:1px solid rgba(0,255,136,0.1)">Generate Invite Key</button>
+                          <button v-if="isAdmin" @click="banUser(usr.id)" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:none;color:#ff6b6b;cursor:pointer">
                             {{ usr.banned ? 'Unban' : 'Ban' }}
                           </button>
                         </div>
@@ -1021,6 +1154,18 @@ onMounted(loadData)
                   <input type="checkbox" v-model="rank.permissions.manage_forum" @change="updateRankPermissions(rank.id)" />
                   Manage Forum
                 </label>
+                <label style="display:flex;align-items:center;gap:8px;color:#ff6b6b;cursor:pointer">
+                  <input type="checkbox" v-model="rank.permissions.revoke_key_access" @change="updateRankPermissions(rank.id)" />
+                  Revoke Key Access
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;color:#ff6b6b;cursor:pointer">
+                  <input type="checkbox" v-model="rank.permissions.change_user_email" @change="updateRankPermissions(rank.id)" />
+                  Change User Email
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;color:#ff6b6b;cursor:pointer">
+                  <input type="checkbox" v-model="rank.permissions.change_user_uid" @change="updateRankPermissions(rank.id)" />
+                  Change User UID
+                </label>
               </div>
             </div>
           </div>
@@ -1083,6 +1228,46 @@ onMounted(loadData)
         <div style="margin-top:16px;display:flex;gap:8px">
           <button class="create-btn" @click="submitBan" :disabled="banSubmitting" style="flex:1">{{ banSubmitting ? 'Banning...' : 'Apply Ban' }}</button>
           <button class="create-btn" @click="closeBanModal" style="background:#666;flex:1">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Email Change Modal -->
+    <div v-if="emailModalOpen" style="position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:2000">
+      <div style="width:min(480px,92vw);background:#0b1b22;border:1px solid rgba(0,255,136,0.2);border-radius:12px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,0.45)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-size:16px;color:#00ffcc;font-weight:600">Change User Email</div>
+          <button class="create-btn" @click="closeEmailModal" style="padding:4px 10px;font-size:12px;background:#2a3a45">Close</button>
+        </div>
+        <div style="color:#9bb0bd;font-size:12px;margin-bottom:10px">User: {{ emailTarget?.username }}</div>
+        <div style="color:#9bb0bd;font-size:11px;margin-bottom:14px">Current: {{ emailTarget?.email }}</div>
+
+        <label style="display:block;margin-bottom:6px;color:#d9eef5;font-size:12px">New Email Address</label>
+        <input class="input" type="email" v-model="newEmail" placeholder="user@example.com" />
+
+        <div style="margin-top:16px;display:flex;gap:8px">
+          <button class="create-btn" @click="submitEmailChange" :disabled="emailSubmitting" style="flex:1">{{ emailSubmitting ? 'Updating...' : 'Change Email' }}</button>
+          <button class="create-btn" @click="closeEmailModal" style="background:#666;flex:1">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- UID Change Modal -->
+    <div v-if="uidModalOpen" style="position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:2000">
+      <div style="width:min(480px,92vw);background:#0b1b22;border:1px solid rgba(0,255,136,0.2);border-radius:12px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,0.45)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div style="font-size:16px;color:#00ffcc;font-weight:600">Change User UID</div>
+          <button class="create-btn" @click="closeUidModal" style="padding:4px 10px;font-size:12px;background:#2a3a45">Close</button>
+        </div>
+        <div style="color:#9bb0bd;font-size:12px;margin-bottom:10px">User: {{ uidTarget?.username }}</div>
+        <div style="color:#9bb0bd;font-size:11px;margin-bottom:14px">Current UID: #{{ uidTarget?.uid }}</div>
+
+        <label style="display:block;margin-bottom:6px;color:#d9eef5;font-size:12px">New UID (positive integer)</label>
+        <input class="input" type="number" v-model="newUid" placeholder="1234" min="1" />
+
+        <div style="margin-top:16px;display:flex;gap:8px">
+          <button class="create-btn" @click="submitUidChange" :disabled="uidSubmitting" style="flex:1">{{ uidSubmitting ? 'Updating...' : 'Change UID' }}</button>
+          <button class="create-btn" @click="closeUidModal" style="background:#666;flex:1">Cancel</button>
         </div>
       </div>
     </div>

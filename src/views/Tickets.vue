@@ -17,6 +17,7 @@ const loading = ref(false)
 const error = ref('')
 const success = ref('')
 const showCreateForm = ref(false)
+const activeTicketTab = ref('open')
 
 const isAdmin = user?.staffRole === 'admin'
 
@@ -42,6 +43,19 @@ function filterTickets() {
   const q = searchUser.value.toLowerCase().trim()
   filteredTickets.value = tickets.value.filter(t => (t.username && t.username.toLowerCase().includes(q)) || (t.createdByUsername && t.createdByUsername.toLowerCase().includes(q)))
 }
+
+import { computed } from 'vue'
+const openTickets = computed(() => {
+  return filteredTickets.value.filter(t => t.status !== 'closed' && t.status !== 'resolved')
+})
+
+const closedTickets = computed(() => {
+  return filteredTickets.value.filter(t => t.status === 'closed' || t.status === 'resolved')
+})
+
+const displayTickets = computed(() => {
+  return activeTicketTab.value === 'open' ? openTickets.value : closedTickets.value
+})
 
 function selectTicket(ticket) {
   selectedTicket.value = ticket
@@ -186,15 +200,33 @@ watch(searchUser, filterTickets)
       <input class="input" v-model="searchUser" placeholder="Search by username..." style="width:300px" />
     </div>
 
+    <!-- Ticket Tabs -->
+    <div style="display:flex;gap:12px;margin-bottom:18px;border-bottom:1px solid rgba(0,255,136,0.2)">
+      <button 
+        class="create-btn" 
+        @click="activeTicketTab='open'" 
+        :style="{background:activeTicketTab==='open' ? '#00ff88' : '#2a3a45',color:activeTicketTab==='open' ? '#061218' : '#d9eef5',padding:'8px 16px'}"
+      >
+        Open ({{ openTickets.length }})
+      </button>
+      <button 
+        class="create-btn" 
+        @click="activeTicketTab='closed'" 
+        :style="{background:activeTicketTab==='closed' ? '#00ff88' : '#2a3a45',color:activeTicketTab==='closed' ? '#061218' : '#d9eef5',padding:'8px 16px'}"
+      >
+        Closed ({{ closedTickets.length }})
+      </button>
+    </div>
+
     <!-- Tickets List -->
     <div style="background:var(--card);border:1px solid rgba(0,255,136,0.1);border-radius:8px;padding:20px">
-      <h3 style="margin-top:0;color:#00ff88">Tickets ({{ filteredTickets.length }})</h3>
+      <h3 style="margin-top:0;color:#00ff88">{{ activeTicketTab === 'open' ? 'Open' : 'Closed' }} Tickets ({{ displayTickets.length }})</h3>
 
-      <div v-if="!filteredTickets.length" style="text-align:center;color:#9bb0bd;padding:40px">
-        No tickets found
+      <div v-if="!displayTickets.length" style="text-align:center;color:#9bb0bd;padding:40px">
+        No {{ activeTicketTab }} tickets found
       </div>
 
-      <div v-for="ticket in filteredTickets" :key="ticket.id" style="background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.1);border-radius:6px;padding:16px;margin-bottom:12px;border-left:4px solid #00ff88;cursor:pointer" @click="selectTicket(ticket)">
+      <div v-for="ticket in displayTickets" :key="ticket.id" style="background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.1);border-radius:6px;padding:16px;margin-bottom:12px;border-left:4px solid #00ff88;cursor:pointer" @click="selectTicket(ticket)">
         <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
           <div>
             <div style="color:#00ffcc;font-weight:600;margin-bottom:4px">#{{ ticket.id.substring(0, 8).toUpperCase() }}</div>

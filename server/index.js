@@ -663,6 +663,69 @@ app.post('/api/admin/users/:userId/unban', authMiddleware, staffMiddleware, asyn
   res.json({ message: 'user unbanned' })
 })
 
+// Revoke user forum access (admin only)
+app.post('/api/admin/users/:userId/revoke-access', authMiddleware, async (req, res) => {
+  if (req.user.staffRole !== 'admin') return res.status(403).json({ error: 'admin only' })
+  
+  await db.read()
+  const user = db.data.users.find(u => u.id === req.params.userId)
+  if (!user) return res.status(404).json({ error: 'user not found' })
+  
+  user.accessRevoked = true
+  await db.write()
+  res.json({ message: 'user access revoked' })
+})
+
+// Change user email (admin only)
+app.post('/api/admin/users/:userId/change-email', authMiddleware, async (req, res) => {
+  if (req.user.staffRole !== 'admin') return res.status(403).json({ error: 'admin only' })
+  
+  const { email } = req.body
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'valid email required' })
+  }
+  
+  await db.read()
+  const user = db.data.users.find(u => u.id === req.params.userId)
+  if (!user) return res.status(404).json({ error: 'user not found' })
+  
+  // Check if email is already taken
+  const existing = db.data.users.find(u => u.email === email && u.id !== user.id)
+  if (existing) return res.status(400).json({ error: 'email already in use' })
+  
+  user.email = email
+  await db.write()
+  res.json({ message: 'user email updated' })
+})
+
+// Change user UID (admin only)
+app.post('/api/admin/users/:userId/change-uid', authMiddleware, async (req, res) => {
+  if (req.user.staffRole !== 'admin') return res.status(403).json({ error: 'admin only' })
+  
+  const { uid } = req.body
+  if (!uid || !Number.isInteger(uid) || uid < 1) {
+    return res.status(400).json({ error: 'valid UID required (positive integer)' })
+  }
+  
+  await db.read()
+  const user = db.data.users.find(u => u.id === req.params.userId)
+  if (!user) return res.status(404).json({ error: 'user not found' })
+  
+  // Check if UID is already taken
+  const existing = db.data.users.find(u => u.uid === uid && u.id !== user.id)
+  if (existing) return res.status(400).json({ error: 'UID already in use' })
+  
+  const oldUid = user.uid
+  user.uid = uid
+  
+  // Update account log
+  const log = db.data.accountLogs.find(l => l.uid === oldUid)
+  if (log) log.uid = uid
+  
+  await db.write()
+  res.json({ message: 'user UID updated' })
+})
+
 // Get all users list
 app.get('/api/admin/users', authMiddleware, async (req, res) => {
   if (!req.user.staffRole) return res.status(403).json({ error: 'staff only' })
@@ -686,7 +749,8 @@ app.get('/api/admin/users', authMiddleware, async (req, res) => {
     banExpiresAt: u.banExpiresAt || null,
     banDurationLabel: u.banDurationLabel || null,
     createdAt: u.createdAt,
-    ipsCount: u.ips?.length || 0
+    ipsCount: u.ips?.length || 0,
+    profile: u.profile || {}
   }))
   res.json(userList)
 })
