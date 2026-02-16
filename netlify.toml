@@ -5,6 +5,9 @@
 
 [build.environment]
   NODE_VERSION = "20.19.0"
+  # REQUIRED: Set VITE_API_BASE in Netlify UI to your backend URL
+  # Example: VITE_API_BASE = "https://your-backend.onrender.com"
+  # See DEPLOYMENT.md for setup instructions
 
 [[redirects]]
   from = "/*"

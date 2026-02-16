@@ -2,10 +2,32 @@
 
 This is a project template using [Vite](https://vitejs.dev/). It requires [Node.js](https://nodejs.org) version 18+ or 20+.
 
+## 🚨 Important: First Time Setup
+
+**If you see "failed to fetch" errors, you need to install dependencies first!**
+
+### Quick Start (First Time)
+
+Run this script to install all dependencies and start both servers:
+
+```sh
+# Install dependencies for both frontend and backend
+npm install
+cd server && npm install && cd ..
+
+# Start backend (in one terminal)
+cd server && npm start
+
+# Start frontend (in another terminal)
+npm run dev
+```
+
+### Development
+
 To start the frontend:
 
 ```sh
-npm install
+npm install  # Only needed first time or after pulling new changes
 npm run dev
 ```
 
@@ -17,7 +39,7 @@ To run the backend:
 
 ```sh
 cd server
-npm install
+npm install  # Only needed first time or after pulling new changes
 # copy .env.example -> .env and set JWT_SECRET as needed
 npm run dev
 ```

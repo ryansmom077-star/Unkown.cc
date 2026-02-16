@@ -13,7 +13,7 @@
         Powerful tools, clean performance, and a focused community built for speed.
       </p>
       <div class="hero-cta">
-        <a href="/" class="hero-btn primary">Forum</a>
+        <a href="/forum" class="hero-btn primary">Forum</a>
         <a href="/store" class="hero-btn ghost">Products</a>
       </div>
     </div>

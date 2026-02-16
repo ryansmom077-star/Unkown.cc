@@ -3,6 +3,7 @@ import helmet from 'helmet'
 import mongoSanitize from 'express-mongo-sanitize'
 import hpp from 'hpp'
 import { body, validationResult } from 'express-validator'
+import crypto from 'crypto'
 
 // Rate limiting configurations
 export const strictRateLimit = rateLimit({
@@ -247,7 +248,11 @@ export function validateFileUpload(allowedTypes, maxSize = 5 * 1024 * 1024) {
 export function corsConfig() {
   return {
     origin: process.env.NODE_ENV === 'production' 
-      ? process.env.FRONTEND_URL || 'https://unknown.cc'
+      ? [
+          process.env.FRONTEND_URL || 'https://exquisite-tanuki-2c779a.netlify.app',
+          'https://exquisite-tanuki-2c779a.netlify.app',
+          'https://unknown.cc'
+        ]
       : true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -284,4 +289,172 @@ export function sanitizeOutput(obj) {
   }
   
   return sanitized
+}
+
+// SQL Injection prevention (for future use if switching from lowdb)
+export function preventSQLInjection(input) {
+  if (typeof input !== 'string') return input
+  
+  // Remove common SQL injection patterns
+  const patterns = [
+    /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b)/gi,
+    /(--[^\n]*)/g,
+    /\/\*.*?\*\//g,
+    /(\bOR\b.*?=.*?)/gi,
+    /(\bAND\b.*?=.*?)/gi,
+    /(;[\s]*DROP)/gi,
+    /(UNION.*?SELECT)/gi
+  ]
+  
+  let sanitized = input
+  patterns.forEach(pattern => {
+    sanitized = sanitized.replace(pattern, '')
+  })
+  
+  return sanitized
+}
+
+// Admin action logging for audit trail
+const adminActionLog = []
+export function logAdminAction(adminId, action, target, details = {}) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    adminId,
+    action,
+    target,
+    details,
+    ip: details.ip || 'unknown'
+  }
+  
+  adminActionLog.push(logEntry)
+  console.log('[ADMIN ACTION]', JSON.stringify(logEntry))
+  
+  // Keep only last 10000 entries in memory
+  if (adminActionLog.length > 10000) {
+    adminActionLog.shift()
+  }
+  
+  return logEntry
+}
+
+export function getAdminActionLogs(limit = 100) {
+  return adminActionLog.slice(-limit)
+}
+
+// Detect suspicious patterns (pen testing)
+// Note: Patterns are intentionally conservative to reduce false positives
+export function detectSuspiciousActivity(req) {
+  const suspiciousPatterns = {
+    // Only detect SQL injection in non-code contexts
+    sqlInjection: /(\b(DROP|DELETE|TRUNCATE)\s+(TABLE|DATABASE|FROM)\b)|(UNION\s+ALL\s+SELECT)|(OR\s+[0-9]+=+[0-9]+)/gi,
+    // XSS patterns that are rarely legitimate
+    xss: /(<script[^>]*>|javascript:\s*void|onerror\s*=|<iframe[^>]*src)/gi,
+    // Path traversal attempts
+    pathTraversal: /(\.\.[\/\\]{2,}|\.\.%2F%2F|\.\.%5C%5C)/gi
+    // Removed overly broad patterns: commandInjection and ldapInjection
+  }
+  
+  const threats = []
+  const checkString = JSON.stringify({
+    body: req.body,
+    query: req.query,
+    params: req.params
+  })
+  
+  for (const [type, pattern] of Object.entries(suspiciousPatterns)) {
+    if (pattern.test(checkString)) {
+      threats.push({
+        type,
+        severity: type === 'sqlInjection' ? 'high' : 'medium',
+        detected: new Date().toISOString(),
+        ip: req.ip,
+        path: req.path,
+        method: req.method
+      })
+    }
+  }
+  
+  if (threats.length > 0) {
+    console.warn('[SECURITY ALERT]', JSON.stringify({
+      ip: req.ip,
+      path: req.path,
+      threats,
+      userAgent: req.get('user-agent')
+    }))
+  }
+  
+  return threats
+}
+
+// Middleware to detect and block suspicious activity
+export function securityMonitor(req, res, next) {
+  const threats = detectSuspiciousActivity(req)
+  
+  if (threats.length > 0) {
+    // Block high severity threats
+    const highSeverity = threats.some(t => t.severity === 'high')
+    if (highSeverity) {
+      return res.status(403).json({ 
+        error: 'Suspicious activity detected',
+        message: 'This request has been blocked for security reasons'
+      })
+    }
+  }
+  
+  next()
+}
+
+// Session security - logs changes but doesn't block (to avoid false positives)
+export function validateSessionSecurity(req, res, next) {
+  // Monitor for significant session changes (informational only)
+  const currentUA = req.get('user-agent')
+  const currentIP = req.ip
+  
+  if (req.user) {
+    // Store user agent and IP on first auth
+    if (!req.user.lastUA) {
+      req.user.lastUA = currentUA
+      req.user.lastIP = currentIP
+    } else {
+      // Log significant changes (different UA AND different IP)
+      // Note: This is informational only to avoid blocking legitimate users
+      // who switch networks or update browsers
+      const uaChanged = req.user.lastUA !== currentUA
+      const ipChanged = req.user.lastIP !== currentIP
+      
+      if (uaChanged && ipChanged) {
+        console.warn('[SESSION SECURITY]', JSON.stringify({
+          userId: req.user.id,
+          message: 'Significant session change detected (both UA and IP)',
+          oldUA: req.user.lastUA?.substring(0, 50),
+          newUA: currentUA?.substring(0, 50),
+          oldIP: req.user.lastIP,
+          newIP: currentIP,
+          note: 'User may have switched devices or networks - monitoring only'
+        }))
+      }
+    }
+  }
+  
+  next()
+}
+
+// CSRF protection token generation
+export function generateCSRFToken() {
+  return crypto.randomBytes(32).toString('hex')
+}
+
+// Validate CSRF token
+export function validateCSRFToken(req, res, next) {
+  // Skip for GET requests
+  if (req.method === 'GET') return next()
+  
+  const token = req.headers['x-csrf-token'] || req.body.csrfToken
+  const sessionToken = req.session?.csrfToken
+  
+  if (!token || token !== sessionToken) {
+    return res.status(403).json({ error: 'Invalid CSRF token' })
+  }
+  
+  next()
 }
