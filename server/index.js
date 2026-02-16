@@ -343,9 +343,15 @@ app.post('/api/auth/login', async (req, res) => {
       expires: 10
     })
 
-    await sendEmail(user.email, 'Login Verification Code', `Your login code is ${code}`, html)
+    const emailSent = await sendEmail(user.email, 'Login Verification Code', `Your login code is ${code}`, html)
     await db.write()
     const tempToken = jwt.sign({ id: user.id, purpose: '2fa-login' }, JWT_SECRET, { expiresIn: '10m' })
+    
+    if (!emailSent) {
+      // SMTP not configured - include code in response for development/testing
+      return res.json({ requiresTwoFa: true, tempToken, devCode: code, message: 'Email not configured. Use code: ' + code })
+    }
+    
     return res.json({ requiresTwoFa: true, tempToken })
   }
 
@@ -1288,8 +1294,14 @@ app.post('/api/auth/2fa/request-enable', authMiddleware, async (req, res) => {
     expires: 10
   })
 
-  await sendEmail(user.email, 'Unknown.cc 2FA Code', `Your 2FA code is ${code}`, html)
+  const emailSent = await sendEmail(user.email, 'Unknown.cc 2FA Code', `Your 2FA code is ${code}`, html)
   await db.write()
+  
+  if (!emailSent) {
+    // SMTP not configured - return code in response for development/testing
+    return res.json({ message: 'Email not configured. Code (for testing): ' + code, code })
+  }
+  
   res.json({ message: 'Code sent to email' })
 })
 
@@ -1342,8 +1354,14 @@ app.post('/api/auth/2fa/request-disable', authMiddleware, async (req, res) => {
     expires: 10
   })
 
-  await sendEmail(user.email, 'Unknown.cc 2FA Code', `Your 2FA code is ${code}`, html)
+  const emailSent = await sendEmail(user.email, 'Unknown.cc 2FA Code', `Your 2FA code is ${code}`, html)
   await db.write()
+  
+  if (!emailSent) {
+    // SMTP not configured - return code in response for development/testing
+    return res.json({ message: 'Email not configured. Code (for testing): ' + code, code })
+  }
+  
   res.json({ message: 'Code sent to email' })
 })
 
@@ -1534,9 +1552,15 @@ app.post('/api/auth/password-reset/request', async (req, res) => {
       'This code expires in 15 minutes.'
     ]
   )
-  await sendEmail(user.email, 'Password Reset Code', text)
+  const emailSent = await sendEmail(user.email, 'Password Reset Code', text)
 
   await db.write()
+  
+  if (!emailSent) {
+    // SMTP not configured - return code in response for development/testing
+    return res.json({ message: 'Email not configured. Code (for testing): ' + code, code })
+  }
+  
   res.json({ message: 'If the email exists, a code was sent.' })
 })
 
