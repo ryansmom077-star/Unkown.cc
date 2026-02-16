@@ -57,6 +57,10 @@ npm run dev
 
 After both servers are running open the Vite dev URL (usually http://localhost:5173).
 
+## Documentation
+
+- **[Profile Guide](PROFILE_GUIDE.md)** - Comprehensive guide on how user profiles work in the Unknown Forums, including customization, notifications, invitations, and security settings.
+
 ## Production Deployment (Netlify + Render)
 
 This repo is set up for a public deployment with Netlify (frontend) and Render (API).
