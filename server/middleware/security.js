@@ -285,3 +285,162 @@ export function sanitizeOutput(obj) {
   
   return sanitized
 }
+
+// SQL Injection prevention (for future use if switching from lowdb)
+export function preventSQLInjection(input) {
+  if (typeof input !== 'string') return input
+  
+  // Remove common SQL injection patterns
+  const patterns = [
+    /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b)/gi,
+    /(--[^\n]*)/g,
+    /\/\*.*?\*\//g,
+    /(\bOR\b.*?=.*?)/gi,
+    /(\bAND\b.*?=.*?)/gi,
+    /(;[\s]*DROP)/gi,
+    /(UNION.*?SELECT)/gi
+  ]
+  
+  let sanitized = input
+  patterns.forEach(pattern => {
+    sanitized = sanitized.replace(pattern, '')
+  })
+  
+  return sanitized
+}
+
+// Admin action logging for audit trail
+const adminActionLog = []
+export function logAdminAction(adminId, action, target, details = {}) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    adminId,
+    action,
+    target,
+    details,
+    ip: details.ip || 'unknown'
+  }
+  
+  adminActionLog.push(logEntry)
+  console.log('[ADMIN ACTION]', JSON.stringify(logEntry))
+  
+  // Keep only last 10000 entries in memory
+  if (adminActionLog.length > 10000) {
+    adminActionLog.shift()
+  }
+  
+  return logEntry
+}
+
+export function getAdminActionLogs(limit = 100) {
+  return adminActionLog.slice(-limit)
+}
+
+// Detect suspicious patterns (pen testing)
+export function detectSuspiciousActivity(req) {
+  const suspiciousPatterns = {
+    sqlInjection: /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE)\b)|(\bOR\b.*?=.*?)|(UNION.*?SELECT)/gi,
+    xss: /(<script|javascript:|onerror=|onload=|<iframe|<embed|<object)/gi,
+    pathTraversal: /(\.\.[\/\\]|\.\.%2F|\.\.%5C)/gi,
+    commandInjection: /(\||;|`|\$\(|\${|&&)/g,
+    ldapInjection: /(\*|\(|\)|\||&)/g
+  }
+  
+  const threats = []
+  const checkString = JSON.stringify({
+    body: req.body,
+    query: req.query,
+    params: req.params
+  })
+  
+  for (const [type, pattern] of Object.entries(suspiciousPatterns)) {
+    if (pattern.test(checkString)) {
+      threats.push({
+        type,
+        severity: type === 'sqlInjection' || type === 'commandInjection' ? 'high' : 'medium',
+        detected: new Date().toISOString(),
+        ip: req.ip,
+        path: req.path,
+        method: req.method
+      })
+    }
+  }
+  
+  if (threats.length > 0) {
+    console.warn('[SECURITY ALERT]', JSON.stringify({
+      ip: req.ip,
+      path: req.path,
+      threats,
+      userAgent: req.get('user-agent')
+    }))
+  }
+  
+  return threats
+}
+
+// Middleware to detect and block suspicious activity
+export function securityMonitor(req, res, next) {
+  const threats = detectSuspiciousActivity(req)
+  
+  if (threats.length > 0) {
+    // Block high severity threats
+    const highSeverity = threats.some(t => t.severity === 'high')
+    if (highSeverity) {
+      return res.status(403).json({ 
+        error: 'Suspicious activity detected',
+        message: 'This request has been blocked for security reasons'
+      })
+    }
+  }
+  
+  next()
+}
+
+// Session security
+export function validateSessionSecurity(req, res, next) {
+  // Check for session hijacking indicators
+  const currentUA = req.get('user-agent')
+  const currentIP = req.ip
+  
+  if (req.user) {
+    // Store user agent and IP on first auth
+    if (!req.user.lastUA) {
+      req.user.lastUA = currentUA
+      req.user.lastIP = currentIP
+    } else {
+      // Detect suspicious session changes
+      if (req.user.lastUA !== currentUA || req.user.lastIP !== currentIP) {
+        console.warn('[SESSION SECURITY]', JSON.stringify({
+          userId: req.user.id,
+          message: 'Session parameters changed',
+          oldUA: req.user.lastUA,
+          newUA: currentUA,
+          oldIP: req.user.lastIP,
+          newIP: currentIP
+        }))
+      }
+    }
+  }
+  
+  next()
+}
+
+// CSRF protection token generation
+export function generateCSRFToken() {
+  return require('crypto').randomBytes(32).toString('hex')
+}
+
+// Validate CSRF token
+export function validateCSRFToken(req, res, next) {
+  // Skip for GET requests
+  if (req.method === 'GET') return next()
+  
+  const token = req.headers['x-csrf-token'] || req.body.csrfToken
+  const sessionToken = req.session?.csrfToken
+  
+  if (!token || token !== sessionToken) {
+    return res.status(403).json({ error: 'Invalid CSRF token' })
+  }
+  
+  next()
+}

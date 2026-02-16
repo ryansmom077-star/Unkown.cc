@@ -26,7 +26,10 @@ import {
   validateEmail,
   validatePassword,
   validateUsername,
-  handleValidationErrors
+  handleValidationErrors,
+  securityMonitor,
+  logAdminAction,
+  validateSessionSecurity
 } from './middleware/security.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -209,6 +212,12 @@ app.use(cors(corsConfig()))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ limit: '10mb', extended: true }))
 app.set('trust proxy', 1)
+
+// Security monitoring for suspicious activity
+app.use(securityMonitor)
+
+// Session security validation
+app.use(validateSessionSecurity)
 
 // General rate limiting for all routes
 app.use(generalRateLimit)
@@ -702,6 +711,14 @@ app.post('/api/admin/users/:userId/ban', authMiddleware, staffMiddleware, async 
   const log = db.data.accountLogs.find(l => l.uid === user.uid)
   if (log) log.banned = true
 
+  // Log admin action
+  logAdminAction(req.user.id, 'ban_user', user.id, {
+    reason,
+    duration,
+    expiresAt: user.banExpiresAt,
+    ip: getClientIp(req)
+  })
+
   await db.write()
   res.json({ message: 'user banned', banExpiresAt: user.banExpiresAt })
 })
@@ -720,6 +737,11 @@ app.post('/api/admin/users/:userId/unban', authMiddleware, staffMiddleware, asyn
   // Update account log
   const log = db.data.accountLogs.find(l => l.uid === user.uid)
   if (log) log.banned = false
+  
+  // Log admin action
+  logAdminAction(req.user.id, 'unban_user', user.id, {
+    ip: getClientIp(req)
+  })
   
   await db.write()
   res.json({ message: 'user unbanned' })
@@ -755,8 +777,17 @@ app.post('/api/admin/users/:userId/change-email', authMiddleware, async (req, re
   const existing = db.data.users.find(u => u.email === email && u.id !== user.id)
   if (existing) return res.status(400).json({ error: 'email already in use' })
   
+  const oldEmail = user.email
   user.email = email
   await db.write()
+  
+  // Log admin action
+  logAdminAction(req.user.id, 'change_user_email', user.id, {
+    oldEmail,
+    newEmail: email,
+    ip: getClientIp(req)
+  })
+  
   res.json({ message: 'user email updated' })
 })
 
@@ -783,6 +814,13 @@ app.post('/api/admin/users/:userId/change-uid', authMiddleware, async (req, res)
   // Update account log
   const log = db.data.accountLogs.find(l => l.uid === oldUid)
   if (log) log.uid = uid
+  
+  // Log admin action
+  logAdminAction(req.user.id, 'change_user_uid', user.id, {
+    oldUid,
+    newUid: uid,
+    ip: getClientIp(req)
+  })
   
   await db.write()
   res.json({ message: 'user UID updated' })
